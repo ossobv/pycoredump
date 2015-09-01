@@ -71,10 +71,11 @@ class SubprocessIO(ReadUntilMixin):
             preexec_fn=None, close_fds=True)  # os.setsid() on preexec?
 
     def read(self, size):
-        return self.__procfp.stdout.read(size)
+        return self.__procfp.stdout.read(size).decode('ascii')
 
     def write(self, what):
-        self.__procfp.stdin.write(what)
+        self.__procfp.stdin.write(what.encode('ascii'))
+        self.__procfp.stdin.flush()
 
     def close(self):
         assert self.__procfp
