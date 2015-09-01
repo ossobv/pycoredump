@@ -13,9 +13,9 @@ def hexint(value):
 
 class ReadUntilMixin(object):
     """
-    Implements read_until(). Does not require push_bash functionality
-    since it reads very slowly (bytewise) when it reaches what it's
-    supposed to find.
+    Implements read_until(). Does not require select/poll/push-back
+    functionality because it reads very slowly (bytewise) when it
+    reaches what it's supposed to find.
     """
     def __init__(self, readfunc, **kwargs):
         super(ReadUntilMixin, self).__init__(**kwargs)
@@ -281,10 +281,10 @@ class GdbThread(GdbMultiLine):
     def waiting_for_mutex(self):
         if not hasattr(self, '_waiting_for_mutex'):
             if self.func == '__lll_lock_wait':
-                self._lockinfo = self._waiting_for_mutex_read()
+                self._waiting_for_mutex = self._waiting_for_mutex_read()
             else:
-                self._lockinfo = None
-        return self._lockinfo
+                self._waiting_for_mutex = None
+        return self._waiting_for_mutex
 
     def _waiting_for_mutex_read(self):
         self.gdb.thread(self.thno)
