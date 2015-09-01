@@ -2,16 +2,13 @@
 # vim: set ts=8 sw=4 sts=4 et ai:
 # pycoredump -- Walter Doekes, OSSO B.V. 2015
 from __future__ import absolute_import, print_function
-from collections import defaultdict
 from subprocess import Popen, PIPE
-from time import sleep
 
 
 def hexint(value):
     if value.startswith('0x'):
         return int(value[2:], 16)
     raise ValueError('Expected 0xHEX integer, got {}'.format(value))
-
 
 
 class ReadUntilMixin(object):
@@ -27,23 +24,23 @@ class ReadUntilMixin(object):
     def read_until(self, what):
         ret = []
 
-	prev, both = '', ''
-	while True:
+        prev, both = '', ''
+        while True:
             for i in range(len(what) - 1, -1, -1):
                 if both.endswith(what[0:i]):
                     break
             bufsize = len(what) - i
-	    next_ = self.read(bufsize)
-	    both = prev + next_
-	    try:
-		index = both.index(what)
-	    except ValueError:
+            next_ = self.read(bufsize)
+            both = prev + next_
+            try:
+                index = both.index(what)
+            except ValueError:
                 ret.append(prev)
-		prev = next_
-	    else:
+                prev = next_
+            else:
                 assert index + len(what) == len(both)
                 ret.append(both)
-		break
+                break
         return ''.join(ret)
 
 
@@ -59,16 +56,16 @@ class SubprocessIO(ReadUntilMixin):
         self.__procfp = None
 
     def __enter__(self):
-	self.open()
-	return self
+        self.open()
+        return self
 
     def __exit__(self, type, value, tb):
-	self.close()
+        self.close()
 
     def open(self):
         assert not self.__procfp
         self.__devnull = open('/dev/null', 'w')
-	self.__procfp = Popen(
+        self.__procfp = Popen(
             self.__procargs, stdin=PIPE, stdout=PIPE, stderr=self.__devnull,
             env={'TERM': 'dumb'},
             preexec_fn=None, close_fds=True)  # os.setsid() on preexec?
@@ -77,18 +74,18 @@ class SubprocessIO(ReadUntilMixin):
         return self.__procfp.stdout.read(size)
 
     def write(self, what):
-	self.__procfp.stdin.write(what)
+        self.__procfp.stdin.write(what)
 
     def close(self):
-	assert self.__procfp
-	self.__procfp.stdin.close()   # needed?
-	self.__procfp.stdout.close()  # needed?
+        assert self.__procfp
+        self.__procfp.stdin.close()   # needed?
+        self.__procfp.stdout.close()  # needed?
 
-	if self.__procfp.poll() is None:
-	    self.__procfp.kill()
-	self.returncode = self.__procfp.wait()
-	assert self.returncode is not None
-	del self.__procfp
+        if self.__procfp.poll() is None:
+            self.__procfp.kill()
+        self.returncode = self.__procfp.wait()
+        assert self.returncode is not None
+        del self.__procfp
 
         self.__devnull.close()
         del self.__devnull
@@ -111,7 +108,7 @@ class GdbMultiLine(object):
         for rows in feed(data):
             try:
                 instance = cls(gdb, ' '.join(rows))
-            except ValueError as e:
+            except ValueError:
                 pass
             else:
                 ret.append(instance)
@@ -155,7 +152,6 @@ class GdbBacktraceMixin(object):
             return '<GdbBacktrace(\n {}\n)>'.format(
                 '\n '.join(repr(i) for i in self.frames))
 
-
     def backtrace(self):
         ret = self.command('bt')
         return self.GdbBacktrace(self, ret)
@@ -166,7 +162,8 @@ class Gdb(GdbBacktraceMixin, SubprocessIO):
     Implements command().
     """
     def __init__(self, program, corefile):
-        super(Gdb, self).__init__(procargs=('gdb', '-quiet', program, corefile))
+        super(Gdb, self).__init__(procargs=(
+            'gdb', '-quiet', program, corefile))
         self.__sentinel = '--SENTINEL--'
 
     def open(self):
@@ -191,7 +188,7 @@ class Gdb(GdbBacktraceMixin, SubprocessIO):
     def _read_until_sentinel(self):
         self.write('print "{}"\n'.format(self.__sentinel))
         expected = ' = "{}"\n'.format(self.__sentinel)
-	ret = self.read_until(expected)
+        ret = self.read_until(expected)
         # The sentinel looks like '(gdb) $xxx = "--SENTINEL--"'.
         # Remove it from the tail.
         pos = ret.rindex('\n(gdb) $')
@@ -303,38 +300,3 @@ class GdbThread(GdbMultiLine):
     def __repr__(self):
         return '<GdbThread(thno={}, thid=0x{:x}, procid={}, func={})>'.format(
             self.thno, self.thid, self.procid, self.func)
-
-
-if __name__ == '__main__':
-    import sys
-
-    if sys.argv[1:]:
-        program, corefile = sys.argv[1:]
-    else:
-        program = './examples/deadlock'
-        corefile = './examples/deadlock.core'
-
-    with GdbWithThreads(program=program, corefile=corefile) as dump:
-        print('-- all waiting threads --')
-        waiting_for = defaultdict(list)
-        for th in dump.threads:
-            if th.waiting_for_mutex:
-                print(th)
-                print('    waits for', th.waiting_for_mutex.held_by)
-                waiting_for[th.waiting_for_mutex.held_by].append(
-                    th)
-        print()
-
-        threads_not_waited_on_by_more_than_one = [
-            k for k, v in waiting_for.items() if len(v) == 1]
-        relevant_threads = set()
-        for th in threads_not_waited_on_by_more_than_one:
-            relevant_threads.add(th)
-            relevant_threads.add(th.waiting_for_mutex.held_by)
-
-        print('-- relevant threads --')
-        for th in relevant_threads:
-            print(th)
-            print(th.backtrace)
-            print('    waits for', th.waiting_for_mutex.held_by)
-            print()
