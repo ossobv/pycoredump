@@ -17,10 +17,14 @@ with GdbWithThreads(program=program, corefile=corefile) as dump:
                 th)
     print()
 
-    threads_not_waited_on_by_more_than_one = [
-        k for k, v in waiting_for.items() if len(v) == 1]
+    threads_waited_on_the_least = [
+       (k, len(v)) for k, v in waiting_for.items()]
+    threads_waited_on_the_least.sort(key=(lambda x: x[1]))
+    num = threads_waited_on_the_least[0][1]
+    threads_waited_on_the_least = [
+       k for k, v in threads_waited_on_the_least if v <= num]
     relevant_threads = set()
-    for th in threads_not_waited_on_by_more_than_one:
+    for th in threads_waited_on_the_least:
         relevant_threads.add(th)
         relevant_threads.add(th.waiting_for_mutex.held_by)
 
