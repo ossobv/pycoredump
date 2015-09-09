@@ -246,29 +246,38 @@ class GdbThread(GdbMultiLine):
 
     def __init__(self, gdb, line):
         cols = line.split()
-        if len(cols) > 6:
-            if cols[0] == '*':
-                cols.pop(0)  # active thread
-            if cols[1] == 'Thread':
-                self.thno = int(cols[0])
-                self.thid = hexint(cols[2])
-                self.procid = int(cols[4][0:-1])
-                self.file = cols.pop()
 
-                if cols[-1] == 'at':
-                    cols = cols[5:-1]
-                    if cols[1] == 'in':
-                        self.funcaddr = hexint(cols[0])
-                        cols = cols[2:]
-                    else:
-                        self.funcaddr = 0
-                    self.func = cols.pop(0)
-                    self.funcargs = ' '.join(cols)
-                    assert self.funcargs.startswith('('), self.funcargs
-                    assert self.funcargs.endswith(')'), self.funcargs
-                    self.gdb = gdb
-                    return
-        raise ValueError(line)
+        if len(cols) < 2:
+            raise ValueError(line)
+
+        if cols[0] == '*':
+            cols.pop(0)  # active thread
+
+        self.thno = int(cols[0])
+        if cols[1] == 'Thread':  # Thread 0x123 (LWP 123)
+            self.thid = hexint(cols[2])
+            self.procid = int(cols[4][0:-1])
+            cols = cols[5:]
+        elif cols[1] == 'LWP':   # LWP 123
+            self.thid = self.procid = int(cols[2])
+            cols = cols[3:]
+        else:
+            raise ValueError(line)
+
+        self.file = cols.pop()
+        if cols.pop() != 'at':
+            raise ValueError(line)
+
+        if cols[1] == 'in':
+            self.funcaddr = hexint(cols[0])
+            cols = cols[2:]
+        else:
+            self.funcaddr = 0
+        self.func = cols.pop(0)
+        self.funcargs = ' '.join(cols)
+        assert self.funcargs.startswith('('), self.funcargs
+        assert self.funcargs.endswith(')'), self.funcargs
+        self.gdb = gdb
 
     @property
     def backtrace(self):
