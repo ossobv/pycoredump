@@ -143,11 +143,16 @@ class GdbBacktraceMixin(object):
                 return '<GdbFrame(no={}, func={}, file={}>'.format(
                     self.frameno, self.func, self.file)
 
-        def __init__(self, gdb, data):
+        def __init__(self, gdb, data=None):
             self.gdb = gdb
-            self.frames = self.GdbFrame.parse_gdb(gdb, data)
-            assert [(self.frames[i + 1].frameno - self.frames[i].frameno) == 1
-                    for i in range(len(self.frames) - 1)]
+            if data:
+                self.frames = self.GdbFrame.parse_gdb(gdb, data)
+                assert [((self.frames[i + 1].frameno -
+                         self.frames[i].frameno) == 1)
+                        for i in range(len(self.frames) - 1)]
+            else:
+                # Empty backtrace, for the DeadGdbThread.
+                self.frames = []
 
         def __repr__(self):
             return '<GdbBacktrace(\n {}\n)>'.format(
@@ -214,6 +219,8 @@ class GdbWithThreads(Gdb):
         return self._threads
 
     def thread_by_procid(self, procid):
+        # May raise IndexError if the thread does not exist, which could happen
+        # if we're locked by a thread that has been destroyed in the mean time.
         return [i for i in self.threads if i.procid == procid][0]
 
 
@@ -237,7 +244,13 @@ class GdbThread(GdbMultiLine):
         @property
         def held_by(self):
             if not hasattr(self, '_held_by'):
-                self._held_by = self.gdb.thread_by_procid(self.held_by_procid)
+                try:
+                    self._held_by = self.gdb.thread_by_procid(
+                        self.held_by_procid)
+                except IndexError:
+                    self._held_by = DeadGdbThread(
+                        self.gdb, procid=self.held_by_procid)
+                    self.gdb._threads.append(self._held_by)  # yuck
             return self._held_by
 
         def __repr__(self):
@@ -245,6 +258,9 @@ class GdbThread(GdbMultiLine):
                 self.addr, self.held_by_procid)
 
     def __init__(self, gdb, line):
+        # Parses lines like:
+        #  123 Thread 0xffffffff (LWP 32767) 0xffffffff
+        #     in somefunc () at somefile.c
         cols = line.split()
 
         if len(cols) < 2:
@@ -310,3 +326,12 @@ class GdbThread(GdbMultiLine):
     def __repr__(self):
         return '<GdbThread(thno={}, thid=0x{:x}, procid={}, func={})>'.format(
             self.thno, self.thid, self.procid, self.func)
+
+
+class DeadGdbThread(GdbThread):
+    def __init__(self, gdb, procid):
+        super(DeadGdbThread, self).__init__(
+            gdb,
+            ('  -1 Thread 0xffffffff (LWP {}) 0xffffffff '
+             'in DEAD_THREAD () at /dev/null').format(procid))
+        self._backtrace = gdb.GdbBacktrace(gdb)

@@ -4,6 +4,9 @@ from collections import defaultdict
 from pycoredump import GdbWithThreads
 import sys
 
+# $ sudo env PYTHONPATH=`pwd` python examples/debug-deadlock.py \
+#     `sudo which asterisk` \
+#     /var/spool/asterisk/core.vgua0-tc2-2015-10-20T10:30:11+0200
 program, corefile = sys.argv[1:]
 
 with GdbWithThreads(program=program, corefile=corefile) as dump:
@@ -26,11 +29,23 @@ with GdbWithThreads(program=program, corefile=corefile) as dump:
     relevant_threads = set()
     for th in threads_waited_on_the_least:
         relevant_threads.add(th)
-        relevant_threads.add(th.waiting_for_mutex.held_by)
+	if th.waiting_for_mutex:
+            relevant_threads.add(th.waiting_for_mutex.held_by)
 
     print('-- relevant threads --')
     for th in relevant_threads:
         print(th)
         print(th.backtrace)
-        print('    waits for', th.waiting_for_mutex.held_by)
+	if th.waiting_for_mutex:
+            print('    waits for', th.waiting_for_mutex.held_by)
         print()
+
+    # If we're waiting for a dead thread, the above would have shown us way too
+    # little.
+    for th in relevant_threads:
+	if th.thno == -1:
+	    for waiting in waiting_for[th]:
+	        print('-- waiting on dead thread {} --'.format(th))
+		print(waiting)
+		print(waiting.backtrace)
+                print()
