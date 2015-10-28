@@ -8,7 +8,7 @@ from subprocess import Popen, PIPE
 def hexint(value):
     if value.startswith('0x'):
         return int(value[2:], 16)
-    raise ValueError('Expected 0xHEX integer, got {}'.format(value))
+    raise ValueError('Expected 0xHEX integer, got {0}'.format(value))
 
 
 class ReadUntilMixin(object):
@@ -140,7 +140,7 @@ class GdbBacktraceMixin(object):
                 self.funcargs = ' '.join(cols[1:])
 
             def __repr__(self):
-                return '<GdbFrame(no={}, func={}, file={}>'.format(
+                return '<GdbFrame(no={0}, func={1}, file={2}>'.format(
                     self.frameno, self.func, self.file)
 
         def __init__(self, gdb, data=None):
@@ -155,7 +155,7 @@ class GdbBacktraceMixin(object):
                 self.frames = []
 
         def __repr__(self):
-            return '<GdbBacktrace(\n {}\n)>'.format(
+            return '<GdbBacktrace(\n {0}\n)>'.format(
                 '\n '.join(repr(i) for i in self.frames))
 
     def backtrace(self):
@@ -183,7 +183,7 @@ class Gdb(GdbBacktraceMixin, SubprocessIO):
         return ret[6:]
 
     def expression(self, expression):
-        ret = self.command('print {}'.format(expression))
+        ret = self.command('print {0}'.format(expression))
         ret = ret.split(' = ', 1)[1]
         ret = ret.replace('\n', ' ')
         return ret
@@ -192,8 +192,8 @@ class Gdb(GdbBacktraceMixin, SubprocessIO):
         return self._read_until_sentinel()
 
     def _read_until_sentinel(self):
-        self.write('print "{}"\n'.format(self.__sentinel))
-        expected = ' = "{}"\n'.format(self.__sentinel)
+        self.write('print "{0}"\n'.format(self.__sentinel))
+        expected = ' = "{0}"\n'.format(self.__sentinel)
         ret = self.read_until(expected)
         # The sentinel looks like '(gdb) $xxx = "--SENTINEL--"'.
         # Remove it from the tail.
@@ -208,7 +208,7 @@ class GdbWithThreads(Gdb):
 
     def thread(self, thno):
         if self.__thno != thno:
-            self.command('thread {}'.format(thno))
+            self.command('thread {0}'.format(thno))
             self.__thno = thno
 
     @property
@@ -254,7 +254,7 @@ class GdbThread(GdbMultiLine):
             return self._held_by
 
         def __repr__(self):
-            return '<PthMutex(addr={:x}, held_by_procid={}>'.format(
+            return '<PthMutex(addr={0:x}, held_by_procid={1}>'.format(
                 self.addr, self.held_by_procid)
 
     def __init__(self, gdb, line):
@@ -320,18 +320,20 @@ class GdbThread(GdbMultiLine):
         assert len(mutex) == 1, mutex
         mutex_addr = mutex[0].split('=', 1)[1].strip()
         mutex_addr = hexint(mutex_addr.split()[0])
-        value = self.gdb.expression('*(pthread_mutex_t*){}'.format(mutex_addr))
+        value = self.gdb.expression(
+            '*(pthread_mutex_t*){0}'.format(mutex_addr))
         return self.PthMutex(gdb=self.gdb, addr=mutex_addr, value=value)
 
     def __repr__(self):
-        return '<GdbThread(thno={}, thid=0x{:x}, procid={}, func={})>'.format(
-            self.thno, self.thid, self.procid, self.func)
+        return (
+            '<GdbThread(thno={0}, thid=0x{1:x}, procid={2}, func={3})>'.format(
+                self.thno, self.thid, self.procid, self.func))
 
 
 class DeadGdbThread(GdbThread):
     def __init__(self, gdb, procid):
         super(DeadGdbThread, self).__init__(
             gdb,
-            ('  -1 Thread 0xffffffff (LWP {}) 0xffffffff '
+            ('  -1 Thread 0xffffffff (LWP {0}) 0xffffffff '
              'in DEAD_THREAD () at /dev/null').format(procid))
         self._backtrace = gdb.GdbBacktrace(gdb)

@@ -45,7 +45,7 @@ with GdbWithThreads(program=program, corefile=corefile) as dump:
     for th in relevant_threads:
 	if th.thno == -1:
 	    for waiting in waiting_for[th]:
-	        print('-- waiting on dead thread {} --'.format(th))
+	        print('-- waiting on dead thread {0} --'.format(th))
 		print(waiting)
 		print(waiting.backtrace)
                 print()
