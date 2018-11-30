@@ -313,8 +313,10 @@ class GdbThread(GdbMultiLine):
 
     def _waiting_for_mutex_read(self):
         self.gdb.thread(self.thno)
-        ret = self.gdb.command('frame 2')
-        assert '__pthread_mutex_lock' in ret, ret
+        ret = self.gdb.command('frame 1')
+        if '__pthread_mutex_lock' not in ret:
+            ret = self.gdb.command('frame 2')
+            assert '__pthread_mutex_lock' in ret, ret
         ret = self.gdb.command('info args')
         mutex = [i for i in ret.split('\n') if i.startswith('mutex = ')]
         assert len(mutex) == 1, mutex
