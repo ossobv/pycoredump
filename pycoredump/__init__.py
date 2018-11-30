@@ -5,6 +5,14 @@ from __future__ import absolute_import, print_function
 from subprocess import Popen, PIPE
 
 
+try:
+    FileNotFoundError
+except NameError:
+    class FileNotFoundError(IOError):
+        def __init__(self, *args):
+            super(FileNotFoundError, self).__init__(2, *args)
+
+
 def hexint(value):
     if value.startswith('0x'):
         return int(value[2:], 16)
@@ -171,10 +179,12 @@ class Gdb(GdbBacktraceMixin, SubprocessIO):
         super(Gdb, self).__init__(procargs=(
             'gdb', '-quiet', program, corefile))
         self.__sentinel = '--SENTINEL--'
+        self._corefile = corefile
 
     def open(self):
         super(Gdb, self).open()
         self._skip_intro()
+        self._check_exe()
 
     def command(self, command):
         self.write(command + '\n')
@@ -191,14 +201,27 @@ class Gdb(GdbBacktraceMixin, SubprocessIO):
     def _skip_intro(self):
         return self._read_until_sentinel()
 
+    def _check_exe(self):
+        # Expect: "exe = '/usr/sbin/asterisk -g -f -U asterisk'"
+        # Or:     "No current process: you must name one."
+        exe = self.command('info proc')
+        if not exe.startswith('exe = '):
+            open(self._corefile, 'rb').close()  # filesystem/perms issue?
+            raise FileNotFoundError('No readable core in: {!r}'.format(
+                self._corefile))
+        self._proc_cmd = exe[7:-1]
+
     def _read_until_sentinel(self):
         self.write('print "{0}"\n'.format(self.__sentinel))
         expected = ' = "{0}"\n'.format(self.__sentinel)
         ret = self.read_until(expected)
         # The sentinel looks like '(gdb) $xxx = "--SENTINEL--"'.
         # Remove it from the tail.
-        pos = ret.rindex('\n(gdb) $')
-        return ret[0:pos]
+        try:
+            pos = ret.rindex('(gdb) $')
+        except ValueError:
+            raise ValueError('Failed to find sentinel in {!r}'.format(ret))
+        return ret[0:pos].rstrip('\n')
 
 
 class GdbWithThreads(Gdb):
