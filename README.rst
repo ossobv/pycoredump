@@ -2,7 +2,7 @@ Python wrapper around GDB to examine core dumps
 ===============================================
 
 Deadlocks in C programs are a pain to debug. But if you know your way
-around GDB, you may get more out a core dump than you think.
+around GDB, you may get more out of a core dump than you think.
 
 
 Deadlock example
@@ -32,7 +32,7 @@ self-test the deadlock application and then create the file
     ./deadlock nolock
     ...
 
-If all went well, you now a ``deadlock.core`` file:
+If all went well, you now have a ``deadlock.core`` file:
 
 .. code-block:: console
 
