@@ -29,23 +29,23 @@ with GdbWithThreads(program=program, corefile=corefile) as dump:
     relevant_threads = set()
     for th in threads_waited_on_the_least:
         relevant_threads.add(th)
-	if th.waiting_for_mutex:
+        if th.waiting_for_mutex:
             relevant_threads.add(th.waiting_for_mutex.held_by)
 
     print('-- relevant threads --')
     for th in relevant_threads:
         print(th)
         print(th.backtrace)
-	if th.waiting_for_mutex:
+        if th.waiting_for_mutex:
             print('    waits for', th.waiting_for_mutex.held_by)
         print()
 
     # If we're waiting for a dead thread, the above would have shown us way too
     # little.
     for th in relevant_threads:
-	if th.thno == -1:
-	    for waiting in waiting_for[th]:
-	        print('-- waiting on dead thread {0} --'.format(th))
-		print(waiting)
-		print(waiting.backtrace)
+        if th.thno == -1:
+            for waiting in waiting_for[th]:
+                print('-- waiting on dead thread {0} --'.format(th))
+                print(waiting)
+                print(waiting.backtrace)
                 print()
